@@ -1,0 +1,47 @@
+version: '2'
+services:
+  recog:
+    build: .
+    image: recog_img
+    container_name: recog
+    privileged: true
+    links:
+      - rabbitmq
+    depends_on:
+      - recognition
+    ports:
+     - "1085:8085"
+    volumes:
+      - ${PWD}/..:/opt/recog
+      - /var/log:/opt/var
+    restart: always
+    command: "gunicorn -c gunicorn_config.py recog_app.app:app"
+  redis:
+    image: redis:3.2
+    ports:
+      - "6379:6379"
+    volumes:
+      - ${PWD}/redis:/data
+  rabbitmq:
+    image: rabbitmq:3.6.14-management
+    depends_on:
+      - redis
+    volumes:
+      - ${PWD}/rabbitmq:/var/lib/rabbitmq/mnesia
+    environment:
+      - RABBITMQ_DEFAULT_USER=root
+      - RABBITMQ_DEFAULT_PASS=1qaz2wsx
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    restart: always
+  recognition:
+    image: recog_img
+    container_name: recognition_core
+    links:
+      - rabbitmq
+    volumes:
+      - ${PWD}/..:/opt/recog
+      - ${PWD}/..:/opt/recog/log
+    restart: always
+    command: "celery worker -A recog_app.celery_core.tasks.image_recognition_app -l INFO -f log/recognition.log"
